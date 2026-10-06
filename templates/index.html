@@ -156,6 +156,7 @@
                         </div>
                         <div class="col-auto">
                             <button onclick="cargarInforme()" class="btn btn-primary">Generar Informe</button>
+                            <button onclick="descargarExcelMes()" class="btn btn-success">📥 Descargar Excel</button>
                         </div>
                     </div>
 
@@ -407,6 +408,17 @@
                 calendar.refetchEvents();
                 cargarBuscador();
             });
+        }
+
+        function descargarExcelMes() {
+            var mes = document.getElementById('mesInforme').value;
+
+            if (!mes) {
+                alert('Selecciona un mes primero.');
+                return;
+            }
+
+            window.location.href = '/api/descargar_excel?mes=' + encodeURIComponent(mes);
         }
 
         function cargarInforme() {

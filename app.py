@@ -1,5 +1,6 @@
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
+from io import BytesIO
 import openpyxl
 
 app = Flask(__name__)
@@ -267,6 +268,83 @@ def eliminar_cita():
         'message': 'Cita eliminada correctamente' if encontrada else 'Cita no encontrada'
     })
 
+
+
+@app.route('/api/descargar_excel')
+def descargar_excel():
+    mes = request.args.get('mes', '').strip()
+
+    if not mes:
+        return jsonify({'success': False, 'message': 'No se ha seleccionado ningún mes'}), 400
+
+    if not os.path.exists(EXCEL_FILE):
+        return jsonify({'success': False, 'message': 'No existe el archivo Excel'}), 404
+
+    wb_origen = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
+    ws_origen = wb_origen["Citas"] if "Citas" in wb_origen.sheetnames else wb_origen.active
+
+    wb_nuevo = openpyxl.Workbook()
+    ws_nuevo = wb_nuevo.active
+    ws_nuevo.title = "Citas del mes"
+
+    # Copiar encabezados
+    encabezados = [ws_origen.cell(1, col).value for col in range(1, ws_origen.max_column + 1)]
+    ws_nuevo.append(encabezados)
+
+    # Buscar la columna de fecha
+    columna_fecha = None
+    for col in range(1, ws_origen.max_column + 1):
+        encabezado = str(ws_origen.cell(1, col).value or "").strip().lower()
+        if "fecha" in encabezado:
+            columna_fecha = col
+            break
+
+    if columna_fecha is None:
+        return jsonify({'success': False, 'message': 'No se encontró la columna de fecha'}), 500
+
+    # Copiar solamente las citas del mes seleccionado
+    for fila in range(2, ws_origen.max_row + 1):
+        valor_fecha = ws_origen.cell(fila, columna_fecha).value
+
+        if valor_fecha is None:
+            continue
+
+        incluir = False
+
+        if hasattr(valor_fecha, "strftime"):
+            incluir = valor_fecha.strftime("%Y-%m") == mes
+        else:
+            texto_fecha = str(valor_fecha).strip()
+            incluir = texto_fecha.startswith(mes)
+
+        if incluir:
+            valores = [
+                ws_origen.cell(fila, col).value
+                for col in range(1, ws_origen.max_column + 1)
+            ]
+            ws_nuevo.append(valores)
+
+    # Ajustar ancho de columnas
+    for columna in ws_nuevo.columns:
+        max_largo = 0
+        letra = columna[0].column_letter
+        for celda in columna:
+            largo = len(str(celda.value or ""))
+            if largo > max_largo:
+                max_largo = largo
+        ws_nuevo.column_dimensions[letra].width = min(max_largo + 2, 40)
+
+    # Preparar archivo para descargar
+    archivo = BytesIO()
+    wb_nuevo.save(archivo)
+    archivo.seek(0)
+
+    return send_file(
+        archivo,
+        as_attachment=True,
+        download_name=f"informe_tatuajes_{mes}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 @app.route('/api/informe_mensual', methods=['GET'])
 def informe_mensual():
