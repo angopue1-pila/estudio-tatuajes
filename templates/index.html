@@ -135,6 +135,7 @@
                                     <th>Monto Pagado (€)</th>
                                     <th>Estado</th>
                                     <th>Actualizar Cobro</th>
+                                    <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="tablaClientes"></tbody>
@@ -327,11 +328,71 @@
                         <td>
                             <button onclick="guardarPago(${p.id})" class="btn btn-sm btn-outline-primary">Actualizar</button>
                         </td>
+                        <td>
+                            <button onclick="finalizarCita(${p.id})" class="btn btn-sm btn-success mb-1">✅ Finalizar</button>
+                            <button onclick="eliminarCita(${p.id})" class="btn btn-sm btn-danger mb-1">🗑️ Eliminar</button>
+                        </td>
                     `;
                     tbody.appendChild(tr);
                 }
             });
         }
+
+        function finalizarCita(id) {
+
+            if (!confirm('¿Marcar esta cita como FINALIZADA?\\n\\nLa cita desaparecerá del calendario, pero seguirá guardada en Excel.')) {
+                return;
+            }
+
+            fetch('/api/finalizar_cita', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Cita finalizada correctamente.');
+                    calendar.refetchEvents();
+                    cargarBuscador();
+                } else {
+                    alert('No se ha encontrado la cita.');
+                }
+            })
+            .catch(error => {
+                console.error(error);
+                alert('Ha ocurrido un error al finalizar la cita.');
+            });
+        }
+
+
+        function eliminarCita(id) {
+
+            if (!confirm('⚠️ ATENCIÓN\\n\\n¿Seguro que quieres ELIMINAR esta cita definitivamente?\\n\\nEsta acción borrará la cita del Excel y no se puede deshacer.')) {
+                return;
+            }
+
+            fetch('/api/eliminar_cita', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('🗑️ Cita eliminada correctamente.');
+                    calendar.refetchEvents();
+                    cargarBuscador();
+                } else {
+                    alert('No se ha encontrado la cita.');
+                }
+            })
+            .catch(error => {
+                console.error(error);
+                alert('Ha ocurrido un error al eliminar la cita.');
+            });
+        }
+
 
         function guardarPago(id) {
             var nuevoMonto = document.getElementById('inputPay_' + id).value;

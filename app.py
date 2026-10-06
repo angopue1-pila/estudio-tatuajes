@@ -8,6 +8,41 @@ EXCEL_FILE = 'citas.xlsx'
 
 PALETA_COLORES = ['#3788d8', '#28a745', '#dc3545', '#fd7e14', '#6f42c1', '#17a2b8', '#e83e8c', '#6c757d']
 
+def asegurar_columna_estado():
+    """Añade la columna Estado al Excel si no existe y marca las citas antiguas como Activo."""
+    if not os.path.exists(EXCEL_FILE):
+        inicializar_excel()
+        return
+
+    wb = openpyxl.load_workbook(EXCEL_FILE)
+    ws = wb["Citas"] if "Citas" in wb.sheetnames else wb.active
+
+    encabezado_estado = None
+
+    for col in range(1, ws.max_column + 1):
+        if str(ws.cell(1, col).value or "").strip().lower() == "estado":
+            encabezado_estado = col
+            break
+
+    if encabezado_estado is None:
+        encabezado_estado = ws.max_column + 1
+        ws.cell(1, encabezado_estado).value = "Estado"
+
+    for fila in range(2, ws.max_row + 1):
+        if ws.cell(fila, 1).value is not None and not ws.cell(fila, encabezado_estado).value:
+            ws.cell(fila, encabezado_estado).value = "Activo"
+
+    wb.save(EXCEL_FILE)
+
+
+def obtener_columna_estado(ws):
+    """Devuelve el número de columna donde está Estado."""
+    for col in range(1, ws.max_column + 1):
+        if str(ws.cell(1, col).value or "").strip().lower() == "estado":
+            return col
+    return None
+
+
 def inicializar_excel():
     if not os.path.exists(EXCEL_FILE):
         wb = openpyxl.Workbook()
@@ -178,6 +213,60 @@ def actualizar_pago():
             
     wb.save(EXCEL_FILE)
     return jsonify({'success': True})
+
+@app.route('/api/finalizar_cita', methods=['POST'])
+def finalizar_cita():
+    data = request.json
+    cita_id = int(data.get('id'))
+
+    wb = openpyxl.load_workbook(EXCEL_FILE)
+    ws = wb["Citas"] if "Citas" in wb.sheetnames else wb.active
+
+    columna_estado = obtener_columna_estado(ws)
+
+    if columna_estado is None:
+        columna_estado = ws.max_column + 1
+        ws.cell(1, columna_estado).value = "Estado"
+
+    encontrada = False
+
+    for fila in range(2, ws.max_row + 1):
+        if ws.cell(fila, 1).value == cita_id:
+            ws.cell(fila, columna_estado).value = "Finalizado"
+            encontrada = True
+            break
+
+    wb.save(EXCEL_FILE)
+
+    return jsonify({
+        'success': encontrada,
+        'message': 'Cita finalizada correctamente' if encontrada else 'Cita no encontrada'
+    })
+
+
+@app.route('/api/eliminar_cita', methods=['POST'])
+def eliminar_cita():
+    data = request.json
+    cita_id = int(data.get('id'))
+
+    wb = openpyxl.load_workbook(EXCEL_FILE)
+    ws = wb["Citas"] if "Citas" in wb.sheetnames else wb.active
+
+    encontrada = False
+
+    for fila in range(2, ws.max_row + 1):
+        if ws.cell(fila, 1).value == cita_id:
+            ws.delete_rows(fila, 1)
+            encontrada = True
+            break
+
+    wb.save(EXCEL_FILE)
+
+    return jsonify({
+        'success': encontrada,
+        'message': 'Cita eliminada correctamente' if encontrada else 'Cita no encontrada'
+    })
+
 
 @app.route('/api/informe_mensual', methods=['GET'])
 def informe_mensual():
